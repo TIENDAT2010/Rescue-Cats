@@ -6,7 +6,7 @@ public class IngameManager : MonoBehaviour
 {
     public static IngameManager Instance { get; private set; }
 
-    [SerializeField] private Transform playerPos = null;
+
     [SerializeField] private Transform oceanObject = null;
     [SerializeField] private Transform boatTranform = null;
     [SerializeField] private Transform finishObject = null;
@@ -45,8 +45,11 @@ public class IngameManager : MonoBehaviour
 
     private void Start()
     {
+        gameState = GameState.GameInit;
         Application.targetFrameRate = 60;
         ViewManager.Instance.SetActiveView(ViewType.IngameView);
+
+
         if (mapID == -1)
         {
             tsunami.SetSpeed(7);
@@ -59,6 +62,28 @@ public class IngameManager : MonoBehaviour
             GenerateMap();
         }     
     }
+
+    public void GameStart()
+    {
+        gameState = GameState.GameStart;
+        PlayerController.Instance.PlayerStart();
+        tsunami.StartMove();
+    }
+
+    public void GameFailed()
+    {
+        gameState = GameState.LevelFailed;
+        PlayerController.Instance.PlayerFailed();
+        ViewManager.Instance.SetActiveView(ViewType.EndgameView);
+    }
+
+    public void GameCompleted()
+    {
+        gameState = GameState.LevelCompleted;
+        PlayerController.Instance.PlayerCompleted();
+        ViewManager.Instance.SetActiveView(ViewType.EndgameView);
+    }
+
 
     private void GenerateMapDefault()
     {
@@ -83,7 +108,7 @@ public class IngameManager : MonoBehaviour
         for (int i = 0; i < 7; i++)
         {
             RoadController road = PoolManager.Instance.GetRandomRoad();
-            Vector3 pos = playerPos.position;
+            Vector3 pos = PlayerController.Instance.transform.position;
             pos.z += 10 + (i * 20);
             road.transform.position = pos;
 
@@ -117,7 +142,7 @@ public class IngameManager : MonoBehaviour
         }
 
         TotalCats = listBlackCat.Count + listWhiteCat.Count;
-        ViewManager.Instance.IngameView.SetPlayerPos(playerPos.position.z);
+        ViewManager.Instance.IngameView.SetPlayerPos(PlayerController.Instance.transform.position.z);
     }
 
 
@@ -125,7 +150,7 @@ public class IngameManager : MonoBehaviour
     private void GenerateMap()
     {
         List<Transform> listObstaclePos = new List<Transform>();
-        Vector3 currentPos = playerPos.position + Vector3.forward * 10;
+        Vector3 currentPos = PlayerController.Instance.transform.position + Vector3.forward * 10;
 
         for (int i = 0; i < 2; i++)
         {
@@ -242,7 +267,7 @@ public class IngameManager : MonoBehaviour
 
 
         TotalCats = listBlackCat.Count + listWhiteCat.Count;
-        ViewManager.Instance.IngameView.SetPlayerPos(playerPos.position.z);
+        ViewManager.Instance.IngameView.SetPlayerPos(PlayerController.Instance.transform.position.z);
     }   
 
     public Transform GetPosForWhiteCat()
@@ -255,19 +280,7 @@ public class IngameManager : MonoBehaviour
     {
         indexBlackCat++;
         return listBlackCatPos[indexBlackCat];
-    }
-
-    public void GameFailed()
-    {
-        gameState = GameState.LevelFailed;
-        ViewManager.Instance.SetActiveView(ViewType.EndgameView);
-    }    
-
-    public void GameCompleted()
-    {
-        gameState = GameState.LevelCompleted;
-        ViewManager.Instance.SetActiveView(ViewType.EndgameView);
-    }        
+    }     
 
     public int RescuedCats()
     {

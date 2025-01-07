@@ -40,7 +40,7 @@ public class IngameView : BaseView
             yield return new WaitForSeconds(1);
             countTime--;           
         }    
-        FindFirstObjectByType<PlayerController>().GameStart();
+        IngameManager.Instance.GameStart();
         joystickController.gameObject.SetActive(true);
         countDownPanel.gameObject.SetActive(false);
     }    

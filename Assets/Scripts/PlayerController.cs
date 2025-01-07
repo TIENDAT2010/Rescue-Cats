@@ -5,22 +5,22 @@ using System.Collections.Generic;
 
 public class PlayerController : MonoBehaviour
 {
+    public static PlayerController Instance { get; private set; }
+
     [SerializeField] private Animator animator = null;
     [SerializeField] private Transform endPos = null;
     [SerializeField] private Transform fOVObject = null;
     [SerializeField] private Transform arrowObject = null;
     [SerializeField] private Transform playerOnBoatPos = null;
-    [SerializeField] private Transform finishObject = null;
     [SerializeField] private CharacterController characterController = null;
     [SerializeField] private CameraParentController cameraParentController = null;
-    [SerializeField] private TsunamiController tsunamiController = null;
     [SerializeField] private LayerMask catLayer = new LayerMask();
     [SerializeField] private LayerMask tsunamiLayer = new LayerMask();
     [SerializeField] private List<Transform> listBlackCatPos = new List<Transform>();
     [SerializeField] private List<Transform> listWhiteCatPos = new List<Transform>();
 
 
-
+    private PlayerState playerState = PlayerState.PlayerInit;
     private JoystickController joystickController = null;
     private List<CatController> listWhiteCat = new List<CatController>();
     private List<CatController> listBlackCat = new List<CatController>();
@@ -28,14 +28,24 @@ public class PlayerController : MonoBehaviour
     private float blendSpeed = 0;
     private int blackCatIndex = -1;
     private int whiteCatIndex = -1;
-    private bool startRun = false;
-    private bool finishRun = false;
-    private bool defeated = false;
+
+
+    private void Awake()
+    {
+        if (Instance != null)
+        {
+            Instance = null;
+            DestroyImmediate(gameObject);
+        }
+        else
+        {
+            Instance = this;
+        }
+    }
 
     private void Start()
     {
-        defeated = false;
-        finishRun = false;
+        playerState = PlayerState.PlayerInit;
         fOVObject.gameObject.SetActive(false);
         arrowObject.gameObject.SetActive(false);
         joystickController = ViewManager.Instance.IngameView.JoystickController;
@@ -44,225 +54,208 @@ public class PlayerController : MonoBehaviour
 
     private void Update()
     {
-        if(startRun && finishRun == false && defeated == false)
+        if(playerState == PlayerState.PlayerStart)
         {
-            if(characterController.enabled)
+            if (joystickController.JoystickDirection != Vector2.zero)
             {
-                if (joystickController.JoystickDirection != Vector2.zero)
+                //Rotate the player
+                Vector3 joystickDir = joystickController.JoystickDirection;
+                Vector3 playerDir = Vector3.zero;
+                playerDir.x = (joystickDir.normalized.x + transform.position.x);
+                playerDir.z = (joystickDir.normalized.y + transform.position.z);
+                playerDir.y = transform.position.y;
+                Vector3 targetDir = (playerDir - transform.position).normalized;
+                if (!targetDir.Equals(Vector3.zero))
                 {
-                    //Rotate the player
-                    Vector3 joystickDir = joystickController.JoystickDirection;
-                    Vector3 playerDir = Vector3.zero;
-                    playerDir.x = (joystickDir.normalized.x + transform.position.x);
-                    playerDir.z = (joystickDir.normalized.y + transform.position.z);
-                    playerDir.y = transform.position.y;
-                    Vector3 targetDir = (playerDir - transform.position).normalized;
-                    if (!targetDir.Equals(Vector3.zero))
-                    {
-                        Quaternion quaternion = Quaternion.LookRotation(targetDir, Vector3.up);
-                        transform.rotation = Quaternion.Slerp(transform.rotation, quaternion, 3 * Time.deltaTime);
-                    }
-
-                    //Move the player
-                    Vector3 movementDir = transform.forward;
-                    if (!characterController.isGrounded) { movementY -= Time.deltaTime; }
-                    else { movementY = 0f; }
-                    movementDir.y = movementY;
-                    characterController.Move(movementDir * PlayerDataController.CurrentSpeed * Time.deltaTime);
-
-                    blendSpeed = Mathf.Clamp(blendSpeed + 5f * Time.deltaTime, 0, 1);
-                    animator.SetFloat("Speed", blendSpeed);
-                }
-                else
-                {
-                    blendSpeed = Mathf.Clamp(blendSpeed - 5f * Time.deltaTime, 0, 1);
-                    animator.SetFloat("Speed", blendSpeed);
+                    Quaternion quaternion = Quaternion.LookRotation(targetDir, Vector3.up);
+                    transform.rotation = Quaternion.Slerp(transform.rotation, quaternion, 3 * Time.deltaTime);
                 }
 
+                //Move the player
+                Vector3 movementDir = transform.forward;
+                if (!characterController.isGrounded) { movementY -= Time.deltaTime; }
+                else { movementY = 0f; }
+                movementDir.y = movementY;
+                characterController.Move(movementDir * PlayerDataController.CurrentSpeed * Time.deltaTime);
 
-                CatController closestCat = PoolManager.Instance.FindClosestCat(transform.position);
-                if (closestCat != null)
+                blendSpeed = Mathf.Clamp(blendSpeed + 5f * Time.deltaTime, 0, 1);
+                animator.SetFloat("Speed", blendSpeed);
+            }
+            else
+            {
+                blendSpeed = Mathf.Clamp(blendSpeed - 5f * Time.deltaTime, 0, 1);
+                animator.SetFloat("Speed", blendSpeed);
+            }
+
+
+            CatController closestCat = PoolManager.Instance.FindClosestCat(transform.position);
+            if (closestCat != null)
+            {
+                float distance = Vector3.Distance(transform.position, closestCat.transform.position);
+                if (distance < 5f)
                 {
-                    float distance = Vector3.Distance(transform.position, closestCat.transform.position);
-                    if (distance < 5f)
-                    {
-                        fOVObject.gameObject.SetActive(true);
-                        arrowObject.gameObject.SetActive(false);
-                    }
-                    else
-                    {
-                        fOVObject.gameObject.SetActive(false);
-                        arrowObject.gameObject.SetActive(true);
-                        Vector3 dir = (closestCat.transform.position - transform.position).normalized;
-                        arrowObject.forward = dir;
-                    }
+                    fOVObject.gameObject.SetActive(true);
+                    arrowObject.gameObject.SetActive(false);
                 }
                 else
                 {
                     fOVObject.gameObject.SetActive(false);
-                    arrowObject.gameObject.SetActive(false);
+                    arrowObject.gameObject.SetActive(true);
+                    Vector3 dir = (closestCat.transform.position - transform.position).normalized;
+                    arrowObject.forward = dir;
                 }
+            }
+            else
+            {
+                fOVObject.gameObject.SetActive(false);
+                arrowObject.gameObject.SetActive(false);
+            }
 
 
-                //Check collide with the cat
-                Collider[] catColider = Physics.OverlapSphere(transform.position, 5f, catLayer);
-                if (catColider.Length > 0)
+            //Check collide with the cat
+            Collider[] catColider = Physics.OverlapSphere(transform.position, 5f, catLayer);
+            if (catColider.Length > 0)
+            {
+                foreach (Collider col in catColider)
                 {
-                    foreach (Collider col in catColider)
+                    Vector3 towardCat = (col.transform.position - transform.position).normalized;
+                    if (Vector3.Angle(transform.forward, towardCat) <= 30)
                     {
-                        Vector3 towardCat = (col.transform.position - transform.position).normalized;
-                        if (Vector3.Angle(transform.forward, towardCat) <= 30)
+                        CatController cat = PoolManager.Instance.FindCat(col.transform);
+                        if (cat != null && cat.IsRescueByPlayer == false)
                         {
-                            CatController cat = PoolManager.Instance.FindCat(col.transform);
-                            if (cat != null && cat.IsRescueByPlayer == false)
+                            cat.RescuedByPlayer();
+                            if (cat.IsRescueByPlayer)
                             {
-                                cat.RescuedByPlayer();
-                                if (cat.IsRescueByPlayer)
+                                if (cat.CatType == CatType.WhiteCat)
                                 {
-                                    if (cat.CatType == CatType.WhiteCat)
-                                    {
-                                        listWhiteCat.Add(cat);
-                                    }
-                                    else
-                                    {
-                                        listBlackCat.Add(cat);
-                                    }
+                                    listWhiteCat.Add(cat);
+                                }
+                                else
+                                {
+                                    listBlackCat.Add(cat);
                                 }
                             }
                         }
                     }
                 }
-
-
-                //Check collide with the tsunami
-                Collider[] tsunamiColider = Physics.OverlapSphere(transform.position, 0.5f, tsunamiLayer);
-                if (tsunamiColider.Length > 0)
-                {
-                    PlayerDefeated();
-                    IngameManager.Instance.GameFailed();
-                }
-
-
-
-                ViewManager.Instance.IngameView.SetPlayerPos(transform.position.z);
             }
+
+
+            //Check collide with the tsunami
+            Collider[] tsunamiColider = Physics.OverlapSphere(transform.position, 0.5f, tsunamiLayer);
+            if (tsunamiColider.Length > 0)
+            {
+                PlayerFailed();
+                IngameManager.Instance.GameFailed();
+            }
+
+            ViewManager.Instance.IngameView.SetPlayerPos(transform.position.z);
         }
     }
 
 
 
-    public void GameStart()
+    public void PlayerStart()
     {
-        startRun = true;
-        defeated = false;
-        tsunamiController.StartMove();
+        playerState = PlayerState.PlayerStart;
     }
 
-
-    public void PlayerDefeated()
+    public void PlayerCompleted()
     {
-        defeated = true;
-        blendSpeed = 0f;
-        animator.SetFloat("Speed", blendSpeed);
-        tsunamiController.StopAllCoroutines();
+        playerState = PlayerState.PlayerCompleted;
         joystickController.gameObject.SetActive(false);
         fOVObject.gameObject.SetActive(false);
+        arrowObject.gameObject.SetActive(false);
+    }
+
+    public void PlayerFailed()
+    {
+        playerState = PlayerState.PlayerFailed;
+        blendSpeed = 0f;
+        animator.SetFloat("Speed", blendSpeed);
+        joystickController.gameObject.SetActive(false);
+        fOVObject.gameObject.SetActive(false);
+        arrowObject.gameObject.SetActive(false);
     }
 
 
 
     private void OnControllerColliderHit(ControllerColliderHit hit)
     {
-        if(hit.collider.CompareTag("Finish") && finishRun == false)
+        if(hit.collider.CompareTag("Finish") && playerState == PlayerState.PlayerStart)
         {
-            finishRun = true;
-            hit.gameObject.SetActive(false);
-            characterController.enabled = false;
-            joystickController.gameObject.SetActive(false);
-            cameraParentController.OnPlayerHitFinish();
-            finishObject.gameObject.SetActive(false);
-            fOVObject.gameObject.SetActive(false);
-            List<GameObject> list = PoolManager.Instance.GetAllObstacles();
-            for(int i = 0; i < list.Count; i++)
-            {
-                list[i].gameObject.SetActive(false);
-            }
-
-            animator.SetFloat("Speed", 1f);
-            StartCoroutine(CRMovePlayerToCenter());
-            StartCoroutine(CRMovePlayerToEnd());
+            playerState = PlayerState.PlayerFinish;
+            StartCoroutine(CROnPlayerFinish(hit.gameObject));
         }    
     }
 
 
-    private IEnumerator CRMovePlayerToCenter()
+    private IEnumerator CROnPlayerFinish(GameObject hit)
     {
+        yield return null;
+
+        ///Disable Object
+        hit.gameObject.SetActive(false);
+        characterController.enabled = false;
+        joystickController.gameObject.SetActive(false);
+        cameraParentController.OnPlayerHitFinish();
+        fOVObject.gameObject.SetActive(false);
+        arrowObject.gameObject.SetActive(false);
+        List<GameObject> list = PoolManager.Instance.GetAllObstacles();
+        for (int i = 0; i < list.Count; i++)
+        {
+            list[i].gameObject.SetActive(false);
+        }
+
+
+
+        ///Left Player To End Pos
         float t = 0;
-        float moveTime = 0.5f;
+        float moveTime = 10f;
+
+        float startZ = transform.position.z;
+        float endZ = endPos.position.z;
+
+        float leftToCenter = 0.5f;
         float startX = transform.position.x;
+
         Vector3 starFoward = transform.forward;
         Vector3 endFoward = Vector3.forward;
+
+        bool isRotateCamera = false;
         while (t < moveTime)
         {
             t += Time.deltaTime;
-            float factor = t / moveTime;
-            transform.forward = Vector3.Lerp(starFoward, endFoward, factor);
-            float newX = Mathf.Lerp(startX, 5, factor);
-            Vector3 newPos = new Vector3(newX, 0f, transform.position.z);
+
+            float zFactor = t / moveTime;
+            float newZ = Mathf.Lerp(startZ, endZ, zFactor);
+
+            float xFactor = t / leftToCenter;
+            float newX = Mathf.Lerp(startX, 5, xFactor);
+
+            Vector3 newPos = new Vector3(newX, 0f, newZ);
             transform.position = newPos;
-            yield return null;
-            animator.SetFloat("Speed", 1f);
-            if (arrowObject.gameObject.activeSelf) { arrowObject.gameObject.SetActive(false); }
-        }
-    }
 
-
-    public Transform GetCatPos(CatType catType)
-    {
-        if(catType == CatType.BlackCat)
-        {
-            blackCatIndex++;
-            return listBlackCatPos[blackCatIndex];
-        }
-        else
-        {
-            whiteCatIndex++;
-            return listWhiteCatPos[whiteCatIndex];
-        }    
-
-    }
-
-    private IEnumerator CRMovePlayerToEnd()
-    {
-        float t = 0;
-   
-        float startZ = transform.position.z;
-        float endZ = endPos.position.z;
-        float moveTime = (endZ - startZ) / (PlayerDataController.CurrentSpeed * 2f);
-        bool isRotateCamera = false;
-        while(t < moveTime)
-        {
-            t += Time.deltaTime;
-
-            float factor = t / moveTime;
-            float newZ = Mathf.Lerp(startZ, endZ, factor);
-            Vector3 newPos = new Vector3(transform.position.x, 0f, newZ);
-            transform.position = newPos;
+            transform.forward = Vector3.Lerp(starFoward, endFoward, xFactor);
 
             yield return null;
 
-            if(Vector3.Distance(transform.position, endPos.position) < 45f && isRotateCamera == false)
+            blendSpeed = Mathf.Clamp(blendSpeed + 5f * Time.deltaTime, 0, 1);
+            animator.SetFloat("Speed", blendSpeed);
+
+            if (Vector3.Distance(transform.position, endPos.position) < 45f && isRotateCamera == false)
             {
                 isRotateCamera = true;
                 cameraParentController.RotateToTop();
                 ViewManager.Instance.IngameView.DisableTopPanel();
-            }    
+            }
         }
         animator.SetFloat("Speed", 0);
         cameraParentController.SetFollowTarget(null);
 
 
-        for(int i = listWhiteCat.Count -1; i >= 0 ; i--)
+        for (int i = listWhiteCat.Count - 1; i >= 0; i--)
         {
             if (listWhiteCat[i].gameObject.activeSelf)
             {
@@ -281,7 +274,7 @@ public class PlayerController : MonoBehaviour
         }
         yield return new WaitForSeconds(0.25f);
         animator.SetBool("Jump", true);
-        StartCoroutine(CRRotatePlayer());
+        StartCoroutine(CRRotatePlayerOnBoat());
         yield return StartCoroutine(CRJumpToBoat(playerOnBoatPos.position));
         animator.SetBool("Jump", false);
 
@@ -304,7 +297,9 @@ public class PlayerController : MonoBehaviour
     }
 
 
-    private IEnumerator CRRotatePlayer()
+
+
+    private IEnumerator CRRotatePlayerOnBoat()
     {
         float t = 0;
         float moveTime = 0.5f;
@@ -347,6 +342,33 @@ public class PlayerController : MonoBehaviour
     private Vector3 CalculateQuadraticBezierPoint(float t, Vector3 from, Vector3 middle, Vector3 to)
     {
         return Mathf.Pow((1 - t), 2) * from + 2 * (1 - t) * t * middle + Mathf.Pow(t, 2) * to;
+    }
+
+
+
+
+
+
+
+
+
+    /// <summary>
+    /// Get Pos for Cats base on CatType.
+    /// </summary>
+    /// <param name="catType"></param>
+    /// <returns></returns>
+    public Transform GetCatPos(CatType catType)
+    {
+        if (catType == CatType.BlackCat)
+        {
+            blackCatIndex++;
+            return listBlackCatPos[blackCatIndex];
+        }
+        else
+        {
+            whiteCatIndex++;
+            return listWhiteCatPos[whiteCatIndex];
+        }
     }
 }
 

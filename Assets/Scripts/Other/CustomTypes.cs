@@ -4,12 +4,21 @@ using UnityEngine;
 
 public enum GameState
 {
+    GameInit = 0,
     GameStart = 1,
-    GamePause = 2,
-    LevelFailed = 3,
-    LevelCompleted = 4,
+    LevelFailed = 2,
+    LevelCompleted = 3,
 }
 
+
+public enum PlayerState
+{
+    PlayerInit = 0,
+    PlayerStart = 1,
+    PlayerFinish = 2,
+    PlayerFailed = 3,
+    PlayerCompleted = 4,
+}
 
 public enum ViewType
 {
